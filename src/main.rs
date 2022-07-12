@@ -4,7 +4,7 @@ use futures_util::future::ready;
 use futures_util::stream::StreamExt;
 use std::ffi::OsStr;
 use std::sync::{Arc, Mutex};
-use tokio_udev::{EventType, MonitorBuilder};
+use tokio_udev::{AsyncMonitorSocket, EventType, MonitorBuilder};
 
 #[tokio::main]
 async fn main() -> eyre::Result<()> {
@@ -42,46 +42,64 @@ async fn main() -> eyre::Result<()> {
         .wrap_err("Failed to create udev monitor builder")?
         .match_subsystem_devtype("usb", "usb_device")
         .wrap_err("Failed to add usb filter")?;
-    let target_product = "46d/c332/301";
-    let monitor = builder.listen().wrap_err("Couldn't create MonitorSocket")?;
-
+    let target_product = "46d/c24a/7702";
+    let monitor = builder
+        .listen()
+        .map(AsyncMonitorSocket::new)
+        .wrap_err("Couldn't create MonitorSocket")?
+        .wrap_err("Couldn;t create AsyncMonitorSocket")?;
     monitor
         .for_each(|event| {
             // Add, then bind, so treat Bind as the proper event
-            match event.event_type() {
-                EventType::Bind => {
-                    if let Some(product) = event
-                        .device()
-                        .property_value("PRODUCT")
-                        .and_then(OsStr::to_str)
-                    {
-                        if product == target_product {
-                            println!("Device detected, swapping the monitor to us");
-                            // Get reference to the display mutex
-                            let display = display.clone();
-                            if let Ok(mut display) = display.lock() {
-                                display.handle.set_vcp_feature(SOURCE, 0x0F).unwrap();
-                            };
+            if let Ok(event) = event {
+                match event.event_type() {
+                    EventType::Add => {
+                        if let Some(product) = event
+                            .device()
+                            .property_value("PRODUCT")
+                            .and_then(OsStr::to_str)
+                        {
+                            if product == target_product {
+                                println!("Device detected, swapping the monitor to us");
+
+                                // Get reference to the display mutex
+                                let display = display.clone();
+                                if let Ok(mut display) = display.lock() {
+                                    for mut new_display in Display::enumerate() {
+                                        if let Ok(()) = new_display.update_capabilities() {
+                                            *display = new_display;
+                                        }
+                                    }
+                                    display.handle.set_vcp_feature(SOURCE, 0x0F).unwrap();
+                                };
+                            } else {
+                                println!("{:?}", product);
+                            }
                         }
                     }
-                }
-                EventType::Remove => {
-                    if let Some(product) = event
-                        .device()
-                        .property_value("PRODUCT")
-                        .and_then(OsStr::to_str)
-                    {
-                        if product == target_product {
-                            println!("Device removed, swapping the monitor away from us");
-                            // Get reference to the display mutex
-                            let display = display.clone();
-                            if let Ok(mut display) = display.lock() {
-                                display.handle.set_vcp_feature(SOURCE, 0x12).unwrap();
-                            };
+                    EventType::Remove => {
+                        if let Some(product) = event
+                            .device()
+                            .property_value("PRODUCT")
+                            .and_then(OsStr::to_str)
+                        {
+                            if product == target_product {
+                                println!("Device removed, swapping the monitor away from us");
+                                // Get reference to the display mutex
+                                let display = display.clone();
+                                if let Ok(mut display) = display.lock() {
+                                    for mut new_display in Display::enumerate() {
+                                        if let Ok(()) = new_display.update_capabilities() {
+                                            *display = new_display;
+                                        }
+                                    }
+                                    display.handle.set_vcp_feature(SOURCE, 0x12).unwrap();
+                                };
+                            }
                         }
                     }
+                    _ => {}
                 }
-                _ => {}
             }
             ready(())
         })

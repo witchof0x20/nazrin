@@ -9,7 +9,6 @@ edition = "2018"
 [dependencies]
 color-eyre = "0.5"
 ddc-hi = "0.3"
-futures = "0.3"
 futures-util = "0.3"
-tokio-udev = {git = "https://github.com/witchof0x20/tokio-udev"} 
-tokio = { version = "0.3", features = ["full"] }
+tokio = {version="1.19", features=["macros", "rt-multi-thread"]}
+tokio-udev = "0.8"

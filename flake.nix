@@ -26,7 +26,7 @@
           };
           rust_stable = pkgs.rust-bin.stable.latest.default;
           naersk-lib = pkgs.callPackage naersk { rustc = rust_stable; cargo = rust_stable; };
-          dependencies = [ ];
+          dependencies = [ pkgs.pkg-config pkgs.udev ];
           nativeBuildInputs = [ ];
         in
         {
@@ -52,8 +52,6 @@
           devShell = with pkgs;
             mkShell {
               inherit nativeBuildInputs;
-              ORT_STRATEGY = "system";
-              ORT_LIB_LOCATION = "${onnxruntime}";
               buildInputs = [ rust_stable ] ++ dependencies;
             };
 
