@@ -72,12 +72,10 @@ async fn main() -> eyre::Result<()> {
                                     }
                                     display.handle.set_vcp_feature(SOURCE, 0x0F).unwrap();
                                 };
-                            } else {
-                                println!("{:?}", product);
                             }
                         }
                     }
-                    EventType::Remove => {
+                    EventType::Unbind => {
                         if let Some(product) = event
                             .device()
                             .property_value("PRODUCT")
